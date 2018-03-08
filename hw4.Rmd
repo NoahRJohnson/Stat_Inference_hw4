@@ -4,6 +4,15 @@ author: "Noah Johnson"
 date: "March 7, 2018"
 output: pdf_document
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(install.load)
+
+install_load("tidyverse")
+```
+
 ## Bolstad 5.8 
 __Let Y have the Poisson($\mu$ = 3) distribution__  
 
@@ -35,18 +44,14 @@ ppois(3, 3) - dpois(0, 3)
 ## BYSH 4.15.1 Conceptual Exercise 1
 __What are features of inferential OLS models that make them less suitable for count data?__  
 
-We could try to fit a simple linear model to the expected mean, such as $\lambda_{X_i} = \beta_0 + \beta_1X_i$, and then fit this model by minimizing the residual sum of squares $\sum\limits_i (Y_i - \lambda_{X_i})^2$.
+We could try to fit a simple linear model to the expected mean, such as $\lambda_{X_i} = \beta_0 + \beta_1X_i$, and then fit this model by minimizing the residual sum of squares $\sum\limits_i (y_i - \lambda_{X_i})^2$.
 
-But count data can never be negative, which this simple linear model allows.
-
-OLS assumes equal variance over all random variable responses. However, Poisson random variables have their variance increase as the mean rate $\lambda$ increases.
+But count data can never be negative, which this simple linear model allows. Also, to perform inference with OLS estimates, we have to assume equal variance of the response across all predictor values. I'm not sure why count data in particular would be unlikely to satisfy this requirement.
 
 ## BYSH 4.15.1 Conceptual Exercise 2
 __Models of the form $Y_i = \beta_0 + \beta_1X_i, \epsilon \sim iidN(0,\sigma)$ are fit using the method of least squares [note that least squares estimates for linear regression are also MLEs]. What method is used to fit Poisson regression models?__  
 
-Poisson regression models of the form $log(\lambda_{X_i}) = \beta_0 + \beta_1X_i$ are fit using the method of maximum likelihood estimation. The joint probability of the observed data occurring is simply the product of each Poisson random variable, since the observations are assumed to be unique. The log of this likelihood is taken, and numerical methods for convex optimization such as gradient descent are used to maximize this function with respect to the beta coefficients.
-
-This is equivalent to choosing the generating model which maximizes the probability of observing the data we did.
+Poisson regression models of the form $log(\lambda_{X_i}) = \beta_0 + \beta_1X_i$ are fit using the method of maximum likelihood estimation. The joint probability of the observed data occurring is simply the product of each Poisson random variable, since the observations are assumed to be independent. The log of this likelihood is taken, and numerical methods for convex optimization such as gradient descent are used to maximize this function with respect to the coefficients. This is equivalent to choosing the generating model which maximizes the probability of observing the data which we did observe.
 
 ## BYSH 4.15.2 Guided Exercise 1 Elephant Mating
 __How does age affect male elephant mating patterns? An article by Poole (1989) investigated whether mating success in male elephants increases with age and whether there is a peak age for mating success. To address this question, the research team followed 41 elephants for one year and recorded both their ages and their number of matings. The data is found in elephant.csv, and relevant R code can be found under elephantMating.R.__  
@@ -55,10 +60,74 @@ __The variables are:__
 __MATINGS: the number of matings in a given year__  
 __AGE: the age of the elephant in years.__  
  
+```{r}
+elephant_matings <- read.csv('elephant.csv')
+str(elephant_matings)
+```
+
 __(a) Create a histogram of MATINGS. Is there preliminary evidence that number of matings could be modeled as a Poisson response? Explain.__  
+
+```{r}
+elephant_matings %>% ggplot(aes(MATINGS)) +
+  geom_bar()
+```
+
+The histogram suggests that the distribution of the number of matings is skewed. It looks decidedly not normally distributed, since it is sharply cut off at 0. Perhaps if the mean were higher a normal distribution would be an acceptable approximation, but here it will not work. 
+
+The fact that the respjonse is discrete and >= 0 indicates that we can model the response as a Poisson random variable.
+
 __(b) Plot MATINGS by AGE. Add a least squares line. Is there evidence that modeling matings using a linear regression with age might not be appropriate? Explain.__  
+
+```{r}
+elephant_matings %>% ggplot(aes(x = AGE, y = MATINGS)) +
+  geom_point() +
+  geom_smooth(method='lm')
+```
+
+There seems to be some visual evidence of heteroscedasticity - there is more variance in the number of matings for higher values of age. This may make a linear regression inappropriate.
+
 __(c) For each age, calculate the mean number of matings. Take the log of each mean and plot it by AGE.__  
+
+```{r}
+empirical_means <- elephant_matings %>% group_by(AGE) %>% summarise(mean(MATINGS))
+print(empirical_means)
+
+
+empirical_log_means <- empirical_means %>% mutate(empirical_log_mean_MATINGS=log(`mean(MATINGS)`))
+
+empirical_log_means %>% ggplot(aes(x = AGE, y = empirical_log_mean_MATINGS)) +
+  geom_point()
+```
+
 *i. What assumption can be assessed with this plot?*  
+
+We can check the assumption that $log(\lambda_X)$ is linear in $X$.
+
 *ii. Is there evidence of a quadratic trend on this plot?*  
+
+There doesn't seem to be an obvious quadratic trend on this plot.
+
 __(d) Fit a Poisson regression model with a linear term for AGE. Interpret the coefficient for AGE. Exponentiate and interpret the result.__  
+
+```{r}
+pm <- glm(MATINGS ~ AGE, family = poisson, data = elephant_matings)
+pm
+```
+
+Interpreting just the coefficient without exponentiating it is difficult. It is the expected gain in $log(\lambda)$ when age increases by 1 year. Thanks to log rules, this means it is also the log of the ratio of means.
+
+$log(\frac{\lambda_{X+1}}{\lambda_X}) =$ `r pm$coefficients[[2]]`
+
+But this coefficient is best interpreted after exponentiating.
+
+$\frac{\lambda_{X+1}}{\lambda_X} = e^{\beta_1} =$ `r exp(pm$coefficients[[2]])` tells us that the expected number of matings increases by `r signif((exp(pm$coefficients[[2]]) - 1) * 100, 2)`% for every additional year old the male elephant is.
+
 __(e) Construct a 95% confidence interval for the slope and interpret in context (you may want to exponentiate endpoints).__
+
+```{r}
+confint(pm)
+
+exp(confint(pm))
+```
+
+So we are 95% confident that the expected number of matings increases by between `r signif((exp(confint(pm))[2,1] - 1) * 100, 2)` and `r signif((exp(confint(pm))[2,2] - 1) * 100, 2)` percent for every additional year old the male elephant is.
