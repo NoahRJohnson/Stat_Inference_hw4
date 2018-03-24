@@ -74,7 +74,7 @@ elephant_matings %>% ggplot(aes(MATINGS)) +
 
 The histogram suggests that the distribution of the number of matings is skewed. It looks decidedly not normally distributed, since it is sharply cut off at 0. Perhaps if the mean were higher a normal distribution would be an acceptable approximation, but here it will not work. 
 
-The fact that the respjonse is discrete and >= 0 indicates that we can model the response as a Poisson random variable.
+The fact that the response is discrete and >= 0 indicates that we can model the response as a Poisson random variable.
 
 __(b) Plot MATINGS by AGE. Add a least squares line. Is there evidence that modeling matings using a linear regression with age might not be appropriate? Explain.__  
 
